@@ -125,10 +125,11 @@ export default function App() {
       );
       pinchStartDist.current = dist;
       pinchStartZoom.current = settings.zoomOffset;
-      // Clear pan if switching to pinch
+      
+      // Clear pan tracking if switching to pinch, but preserve the visual offset
+      // to avoid the image jumping back to center instantly.
       panStart.current = null;
       lastPanPos.current = null;
-      setPanOffset({ x: 0, y: 0 });
     } 
     // 1 Finger: Pan or Tap
     else if (e.touches.length === 1) {
@@ -178,10 +179,19 @@ export default function App() {
       // Snap to integer
       newZoom = Math.round(newZoom);
       newZoom = Math.max(-3, Math.min(3, newZoom));
-      setSettings(prev => ({ ...prev, zoomOffset: newZoom }));
       
+      // If zoom changed, clear preview to allow new fetch to show "Loading" state
+      // instead of snapping back to old scale
+      if (newZoom !== settings.zoomOffset) {
+        setSettings(prev => ({ ...prev, zoomOffset: newZoom }));
+        setPreviewImage(null);
+      }
+      
+      // Reset gesture state
       pinchStartDist.current = null;
       setPinchScale(1);
+      // Also reset pan offset after a pinch interaction to start fresh
+      setPanOffset({ x: 0, y: 0 });
     } 
     // End Pan
     else if (panStart.current !== null) {
