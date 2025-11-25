@@ -1,0 +1,5 @@
+{
+  "name": "OrbitWall",
+  "description": "A progressive web app to generate high-resolution satellite wallpapers by stitching tile imagery from ESRI services. Features device-aware resolution, image editing, and preview simulation.",
+  "requestFramePermissions": []
+}
