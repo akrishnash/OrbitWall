@@ -54,6 +54,65 @@ android {
     }
 }
 
+// Task to copy APK to root apk directory for easy download
+val apkOutputDir = rootProject.projectDir.parentFile.resolve("apk")
+
+tasks.register("copyApkToRoot", Copy::class) {
+    description = "Copies the built APK to the root apk directory"
+    group = "build"
+    
+    from("build/outputs/apk/debug/")
+    include("app-debug.apk")
+    into(apkOutputDir)
+    
+    // Rename to a consistent name
+    rename("app-debug.apk", "OrbitWall.apk")
+    
+    doLast {
+        println("APK copied to ${apkOutputDir}/OrbitWall.apk")
+    }
+    
+    // Only run if APK exists
+    onlyIf {
+        file("build/outputs/apk/debug/app-debug.apk").exists()
+    }
+}
+
+// Make copyApkToRoot run after assembleDebug
+// Use afterEvaluate to ensure Android plugin tasks are created first
+afterEvaluate {
+    tasks.findByName("assembleDebug")?.apply {
+        finalizedBy("copyApkToRoot")
+    }
+}
+
+// Also for release builds
+tasks.register("copyReleaseApkToRoot", Copy::class) {
+    description = "Copies the release APK to the root apk directory"
+    group = "build"
+    
+    from("build/outputs/apk/release/")
+    include("app-release.apk")
+    into(apkOutputDir)
+    
+    rename("app-release.apk", "OrbitWall.apk")
+    
+    doLast {
+        println("Release APK copied to ${apkOutputDir}/OrbitWall.apk")
+    }
+    
+    onlyIf {
+        file("build/outputs/apk/release/app-release.apk").exists()
+    }
+}
+
+// Configure release task in afterEvaluate
+afterEvaluate {
+    tasks.findByName("assembleRelease")?.apply {
+        finalizedBy("copyReleaseApkToRoot")
+    }
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
 

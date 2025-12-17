@@ -41,23 +41,34 @@ object WallpaperGenerator {
         zoomLevel: Int,
         panOffsetX: Float = 0f,
         panOffsetY: Float = 0f,
-        scale: Float = 1f
+        scale: Float = 1f,
+        previewScreen: Dimensions? = null // Reference screen for geographic area calculation
     ): Bitmap = withContext(Dispatchers.IO) {
-        // Adjust zoom level based on scale (zoomed in = higher effective zoom)
-        val adjustedZoom = (zoomLevel + kotlin.math.log2(scale.toDouble())).toInt().coerceIn(MIN_ZOOM, MAX_ZOOM)
-        val z = adjustedZoom.coerceIn(MIN_ZOOM, MAX_ZOOM)
+        // Use the exact zoom level - no adjustments
+        val z = zoomLevel.coerceIn(MIN_ZOOM, MAX_ZOOM)
         
-        // Calculate meters per pixel at the base zoom level (before scale adjustment)
-        val baseMetersPerPixel = TileMath.metersPerPixel(center.lat, zoomLevel)
+        // Always use preview screen dimensions for geographic area calculation
+        // This ensures we show the exact same area as the preview
+        val renderScreen = previewScreen ?: screen
         
-        // Calculate the actual pan offset in meters (accounting for scale)
-        // Pan offset is in preview screen pixels, convert to actual geographic distance
-        val panMetersX = -(panOffsetX / scale) * baseMetersPerPixel
-        val panMetersY = (panOffsetY / scale) * baseMetersPerPixel // Y is inverted (positive Y = north)
+        // Calculate meters per pixel at this zoom level for the preview bitmap
+        val metersPerPixel = TileMath.metersPerPixel(center.lat, z)
+        
+        // Calculate what geographic area is visible after UI transforms:
+        // - The preview bitmap is at renderScreen size
+        // - UI applies scale transform: when scale > 1 (zoomed in), we see LESS area
+        // - UI applies pan transform: shifts which part is visible
+        
+        // Visible area in preview bitmap pixels (after scale transform)
+        val visibleWidth = renderScreen.width.toDouble() / scale
+        val visibleHeight = renderScreen.height.toDouble() / scale
+        
+        // Pan offset is in preview bitmap pixels
+        // Convert to geographic distance
+        val panMetersX = -panOffsetX * metersPerPixel
+        val panMetersY = panOffsetY * metersPerPixel // Y is inverted (positive Y = north)
         
         // Convert meters to degrees
-        // 1 degree latitude ≈ 111,000 meters (constant)
-        // 1 degree longitude ≈ 111,000 * cos(latitude) meters
         val metersPerDegreeLat = 111000.0
         val metersPerDegreeLon = 111000.0 * kotlin.math.cos(Math.toRadians(center.lat))
         
@@ -70,36 +81,55 @@ object WallpaperGenerator {
             lon = center.lon + lonOffset
         )
         
-        // Calculate tile coordinates for adjusted center at adjusted zoom
+        // Calculate tile coordinates for adjusted center
         val (adjustedCenterX, adjustedCenterY) = TileMath.latLonToTilePoint(adjustedCenter.lat, adjustedCenter.lon, z)
         
-        // Calculate tile bounds - scale determines how much area we need to render
-        // When zoomed in (scale > 1), we need fewer tiles to fill the screen
-        // When zoomed out (scale < 1), we need more tiles
-        val screenTilesW = screen.width.toDouble() / TILE_SIZE / scale
-        val screenTilesH = screen.height.toDouble() / TILE_SIZE / scale
+        // Calculate tile bounds based on visible area
+        val geographicAreaTilesW = visibleWidth / TILE_SIZE
+        val geographicAreaTilesH = visibleHeight / TILE_SIZE
 
-        val minTileX = floor(adjustedCenterX - screenTilesW / 2).toInt()
-        val maxTileX = ceil(adjustedCenterX + screenTilesW / 2).toInt()
-        val minTileY = floor(adjustedCenterY - screenTilesH / 2).toInt()
-        val maxTileY = ceil(adjustedCenterY + screenTilesH / 2).toInt()
+        val minTileX = floor(adjustedCenterX - geographicAreaTilesW / 2).toInt()
+        val maxTileX = ceil(adjustedCenterX + geographicAreaTilesW / 2).toInt()
+        val minTileY = floor(adjustedCenterY - geographicAreaTilesH / 2).toInt()
+        val maxTileY = ceil(adjustedCenterY + geographicAreaTilesH / 2).toInt()
 
-        // Generate bitmap at the exact screen size (wallpaper manager will handle cropping)
-        val bitmap = createBitmap(screen.width, screen.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.BLACK)
+        // Generate bitmap at PREVIEW resolution first (ensures perfect tile alignment, no striping)
+        val previewBitmap = createBitmap(renderScreen.width, renderScreen.height, Bitmap.Config.ARGB_8888)
+        val previewCanvas = Canvas(previewBitmap)
+        previewCanvas.drawColor(Color.BLACK)
 
+        // Draw tiles at native size - perfect alignment, no scaling artifacts
+        val centerX = renderScreen.width / 2.0
+        val centerY = renderScreen.height / 2.0
+        
         for (x in minTileX..maxTileX) {
             for (y in minTileY..maxTileY) {
                 val tile = fetchTile(x, y, z) ?: continue
-                // Calculate draw position relative to adjusted center
-                val drawX = ((x - adjustedCenterX) * TILE_SIZE + screen.width / 2.0).toFloat()
-                val drawY = ((y - adjustedCenterY) * TILE_SIZE + screen.height / 2.0).toFloat()
-                canvas.drawBitmap(tile, drawX, drawY, null)
+                val tileOffsetX = (x - adjustedCenterX) * TILE_SIZE
+                val tileOffsetY = (y - adjustedCenterY) * TILE_SIZE
+                val drawX = (centerX + tileOffsetX).toFloat()
+                val drawY = (centerY + tileOffsetY).toFloat()
+                previewCanvas.drawBitmap(tile, drawX, drawY, null)
             }
         }
 
-        applyEffects(bitmap, settings)
+        // Apply effects to preview bitmap
+        val previewWithEffects = applyEffects(previewBitmap, settings)
+
+        // Scale the entire bitmap to output size (smooth, no stripes)
+        val finalBitmap = if (screen.width != renderScreen.width || screen.height != renderScreen.height) {
+            Bitmap.createScaledBitmap(previewWithEffects, screen.width, screen.height, true).also {
+                // Clean up intermediate bitmaps
+                previewBitmap.recycle()
+                previewWithEffects.recycle()
+            }
+        } else {
+            previewWithEffects.also {
+                previewBitmap.recycle()
+            }
+        }
+
+        finalBitmap
     }
 
     private fun fetchTile(x: Int, y: Int, z: Int): Bitmap? {
@@ -172,4 +202,6 @@ object WallpaperGenerator {
 
     fun zoomCorrection(original: Dimensions, target: Dimensions): Int {
         val ratio = target.width.toDouble() / original.width.toDouble()
-        return log2(ratio).roundTo
+        return log2(ratio).roundToInt()
+    }
+}

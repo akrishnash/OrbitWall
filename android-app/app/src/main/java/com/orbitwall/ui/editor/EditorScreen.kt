@@ -141,14 +141,16 @@ fun EditorScreen(
         isProcessing = true
         errorMessage = null
         try {
+            // Generate preview WITHOUT pan/scale - UI will apply them via graphicsLayer
+            // This ensures the preview bitmap matches what we'll generate for wallpaper
             val bitmap = WallpaperGenerator.generateWallpaper(
                 center = region.location,
                 screen = dimensions,
                 settings = settings,
                 zoomLevel = effectiveZoom,
-                panOffsetX = panOffset.x,
-                panOffsetY = panOffset.y,
-                scale = pinchScale
+                panOffsetX = 0f, // Don't apply pan here - UI handles it
+                panOffsetY = 0f,
+                scale = 1f // Don't apply scale here - UI handles it
             )
             preview = bitmap.asImageBitmap()
         } catch (ex: Exception) {
@@ -632,15 +634,18 @@ private fun setWallpaperToScreen(
                 wallpaperManager.desiredMinimumWidth, 
                 wallpaperManager.desiredMinimumHeight
             )
-            // Generate wallpaper accounting for pan and zoom
+            // Generate wallpaper at higher resolution but SAME zoom/pan/scale as preview
+            // Pass preview screen dimensions to ensure we show the exact same geographic area
+            // No zoom correction - we want the exact same geographic area, just rendered at higher resolution
             val bitmap = WallpaperGenerator.generateWallpaper(
                 center = region.location,
-                screen = outputDim,
+                screen = outputDim, // Output at wallpaper resolution
                 settings = settings,
-                zoomLevel = effectiveZoom + WallpaperGenerator.zoomCorrection(screenDim, outputDim),
+                zoomLevel = effectiveZoom, // Same zoom as preview - no correction
                 panOffsetX = panOffsetX,
                 panOffsetY = panOffsetY,
-                scale = scale
+                scale = scale,
+                previewScreen = screenDim // Use preview dimensions for geographic area calculation
             )
             
             withContext(Dispatchers.IO) {

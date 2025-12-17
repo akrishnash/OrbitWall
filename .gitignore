@@ -48,4 +48,4 @@ android-app/*/build/
 
 # Note: *.apk and *.aab files are tracked by Git LFS (see .gitattributes)
 # Build output directories above are ignored, so build APKs won't be committed
-# If you want to track release APKs, place them outside build directories
+# The apk/ directory contains the latest APK for download (tracked via Git LFS)
