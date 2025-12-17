@@ -22,3 +22,30 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Android
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Android build artifacts (build directories - these shouldn't be tracked)
+android-app/.gradle/
+android-app/app/build/
+android-app/build/
+android-app/*/build/
+
+# Note: *.apk and *.aab files are tracked by Git LFS (see .gitattributes)
+# Build output directories above are ignored, so build APKs won't be committed
+# If you want to track release APKs, place them outside build directories
