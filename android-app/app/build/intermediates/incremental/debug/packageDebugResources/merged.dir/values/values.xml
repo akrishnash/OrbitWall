@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="orbit_background">#050A17</color>
+    <color name="orbit_on_primary">#00161F</color>
+    <color name="orbit_primary">#00B5D8</color>
+    <string name="app_name">OrbitWall</string>
+    <string name="editor_refresh">Refresh</string>
+    <string name="editor_save">Save Wallpaper</string>
+    <string name="email_hint">Email</string>
+    <string name="gallery_title">Featured Orbits</string>
+    <string name="login_button">Continue</string>
+    <string name="login_subtitle">Sign in to create orbit wallpapers</string>
+    <string name="login_title">Welcome back</string>
+    <string name="password_hint">Password</string>
+    <string name="resolution_2k">2K</string>
+    <string name="resolution_4k">4K</string>
+    <string name="resolution_screen">Native</string>
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+    </style>
+</resources>

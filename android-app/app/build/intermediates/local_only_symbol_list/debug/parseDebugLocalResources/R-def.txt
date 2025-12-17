@@ -1,0 +1,18 @@
+R_DEF: Internal format may change without notice
+local
+color orbit_background
+color orbit_on_primary
+color orbit_primary
+string app_name
+string editor_refresh
+string editor_save
+string email_hint
+string gallery_title
+string login_button
+string login_subtitle
+string login_title
+string password_hint
+string resolution_2k
+string resolution_4k
+string resolution_screen
+style AppTheme
