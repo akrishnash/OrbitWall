@@ -31,7 +31,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -70,6 +69,8 @@ import com.orbitwall.model.Dimensions
 import com.orbitwall.model.GeoLocation
 import com.orbitwall.model.Region
 import com.orbitwall.ui.components.ControlsPanel
+import com.orbitwall.utils.PermissionHandler
+import com.orbitwall.wallpaper.WallpaperCache
 import com.orbitwall.wallpaper.WallpaperGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -104,13 +105,74 @@ fun EditorScreen(
     var pinchScale by remember(region.id) { mutableStateOf(1f) }
     var panOffset by remember(region.id) { mutableStateOf(Offset.Zero) }
     var showWallpaperSet by remember { mutableStateOf(false) }
-    var showCustomize by remember { mutableStateOf(false) }
     var showWallpaperOptions by remember { mutableStateOf(false) }
     var swipeOffset by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
     var wallpaperStatusMessage by remember { mutableStateOf<String?>(null) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
 
-    val effectiveZoom = remember(settings, region) { region.zoom + settings.zoomOffset }
+    // Use lower zoom to match gallery preview - start at zoom 7-8 for faster loading
+    // Gallery uses zoom 5, so editor at 7-8 is a good middle ground
+    val effectiveZoom = remember(settings, region) { 
+        // Start with lower zoom (7-8) to match gallery preview better and load faster
+        // User can adjust zoom in settings if needed
+        (region.zoom + settings.zoomOffset).coerceIn(7, 12) // Lower initial zoom for faster loading
+    }
+    
+    // Permission launcher
+    val permissionLauncher = PermissionHandler.rememberPermissionLauncher { isGranted ->
+        if (isGranted) {
+            // Permission granted, retry save operation
+            scope.launch {
+                isProcessing = true
+                try {
+                    val bitmapToSave = WallpaperGenerator.generateWallpaper(
+                        center = region.location,
+                        screen = screenDim,
+                        settings = settings,
+                        zoomLevel = effectiveZoom,
+                        panOffsetX = panOffset.x,
+                        panOffsetY = panOffset.y,
+                        scale = pinchScale,
+                        previewScreen = screenDim
+                    )
+                    val cleanName = region.name.replace(" ", "_")
+                        .replace("/", "_")
+                        .replace("\\", "_")
+                        .replace(":", "_")
+                        .replace("*", "_")
+                        .replace("?", "_")
+                        .replace("\"", "_")
+                        .replace("<", "_")
+                        .replace(">", "_")
+                        .replace("|", "_")
+                    val fileName = "${cleanName}_${System.currentTimeMillis()}.jpg"
+                    val result = saveToGallery(context, bitmapToSave, fileName)
+                    withContext(Dispatchers.Main) {
+                        if (result.success) {
+                            Toast.makeText(context, "Wallpaper saved to Pictures/OrbitWall", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "Failed to save: ${result.error}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Error: ${e.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                    }
+                } finally {
+                    isProcessing = false
+                }
+            }
+        } else {
+            Toast.makeText(context, "Permission denied. Cannot save wallpaper.", Toast.LENGTH_LONG).show()
+        }
+        showPermissionDialog = false
+    }
+    
+    // Settings hash for cache key
+    val settingsHash = remember(settings) {
+        settings.hashCode()
+    }
     
     // Get current region index for navigation
     val currentIndex = remember(region.id, allRegions) {
@@ -141,6 +203,14 @@ fun EditorScreen(
         isProcessing = true
         errorMessage = null
         try {
+            // Check cache first
+            val cached = WallpaperCache.get(region, settingsHash)
+            if (cached != null) {
+                preview = cached
+                isProcessing = false
+                return
+            }
+            
             // Generate preview WITHOUT pan/scale - UI will apply them via graphicsLayer
             // This ensures the preview bitmap matches what we'll generate for wallpaper
             val bitmap = WallpaperGenerator.generateWallpaper(
@@ -153,6 +223,9 @@ fun EditorScreen(
                 scale = 1f // Don't apply scale here - UI handles it
             )
             preview = bitmap.asImageBitmap()
+            
+            // Cache the generated bitmap
+            WallpaperCache.put(region, settingsHash, bitmap)
         } catch (ex: Exception) {
             errorMessage = ex.message ?: "Failed to generate imagery"
         } finally {
@@ -202,14 +275,19 @@ fun EditorScreen(
             }
             
             // Combined gesture handling for pan, zoom, and swipe
+            // Use transformable for pinch zoom/pan, and separate pointerInput for swipe
+            // Only enable swipe when not zoomed in
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) {
+                    .transformable(state = transformState)
+                    .pointerInput(pinchScale) {
+                        // Only detect horizontal drag for swipe when scale is near 1 (not zoomed)
+                        if (pinchScale < 1.15f) {
                         detectHorizontalDragGestures(
                             onDragEnd = {
                                 // Handle swipe navigation
-                                if (isDragging && !showCustomize && !showWallpaperOptions) {
+                                    if (isDragging && !showWallpaperOptions && pinchScale < 1.15f) {
                                     isDragging = false
                                     // Swipe left (drag left, negative offset) = next image
                                     // Swipe right (drag right, positive offset) = previous image
@@ -226,8 +304,8 @@ fun EditorScreen(
                                 }
                             }
                         ) { change, dragAmount ->
-                            // Only handle swipe when not in customize mode and when scale is near 1
-                            if (!showCustomize && !showWallpaperOptions && pinchScale < 1.1f) {
+                                // Only handle swipe when not zoomed and not showing dialog
+                                if (!showWallpaperOptions && pinchScale < 1.15f) {
                                 isDragging = true
                                 swipeOffset += dragAmount
                                 // Limit swipe offset
@@ -235,7 +313,7 @@ fun EditorScreen(
                             }
                         }
                     }
-                    .transformable(state = transformState)
+                    }
             ) {
                 Image(
                     bitmap = preview!!,
@@ -345,166 +423,138 @@ fun EditorScreen(
             }
         }
 
-        // Simplified customize panel (only blur and exposure)
-        AnimatedVisibility(
-            visible = showCustomize,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            Surface(
+        // Two icon buttons: Save and Set Wallpaper
+        Row(
                 modifier = Modifier
+                .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                tonalElevation = 8.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Customize",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Button(
-                            onClick = { showCustomize = false },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text(text = "Done")
+            // Save button (Download icon)
+            FloatingActionButton(
+                onClick = {
+                    // Check permission first
+                    if (PermissionHandler.hasStoragePermission(context)) {
+                        // Permission already granted, proceed with save
+                        scope.launch {
+                            isProcessing = true
+                            try {
+                                // Generate wallpaper for saving (cache will speed up if recently viewed)
+                                val bitmapToSave = WallpaperGenerator.generateWallpaper(
+                                    center = region.location,
+                                    screen = screenDim,
+                                    settings = settings,
+                                    zoomLevel = effectiveZoom,
+                                    panOffsetX = panOffset.x,
+                                    panOffsetY = panOffset.y,
+                                    scale = pinchScale,
+                                    previewScreen = screenDim
+                                )
+                                
+                                // Clean filename - remove invalid characters
+                                val cleanName = region.name.replace(" ", "_")
+                                    .replace("/", "_")
+                                    .replace("\\", "_")
+                                    .replace(":", "_")
+                                    .replace("*", "_")
+                                    .replace("?", "_")
+                                    .replace("\"", "_")
+                                    .replace("<", "_")
+                                    .replace(">", "_")
+                                    .replace("|", "_")
+                                val fileName = "${cleanName}_${System.currentTimeMillis()}.jpg"
+                                
+                                val result = saveToGallery(context, bitmapToSave, fileName)
+                                
+                                withContext(Dispatchers.Main) {
+                                    if (result.success) {
+                                        Toast.makeText(context, "Wallpaper saved to Pictures/OrbitWall", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Failed to save: ${result.error}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Error: ${e.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                                }
+                            } finally {
+                                isProcessing = false
+                            }
                         }
+                    } else {
+                        // Request permission
+                        showPermissionDialog = true
                     }
-                    
-                    // Blur control
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Blur Strength",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "${settings.blur.roundToInt()}px",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        androidx.compose.material3.Slider(
-                            value = settings.blur,
-                            onValueChange = { 
-                                if (!isProcessing) {
-                                    settings = settings.copy(blur = it)
-                                }
-                            },
-                            onValueChangeFinished = {
-                                // Update preview when slider is released
-                                scope.launch { 
-                                    renderPreview(screenDim)
-                                }
-                            },
-                            valueRange = 0f..20f,
-                            steps = 19
-                        )
-                    }
-                    
-                    // Exposure/Brightness control
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Exposure",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "${(settings.brightness * 100).roundToInt()}%",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        androidx.compose.material3.Slider(
-                            value = settings.brightness,
-                            onValueChange = { 
-                                if (!isProcessing) {
-                                    settings = settings.copy(brightness = it)
-                                }
-                            },
-                            onValueChangeFinished = {
-                                // Update preview when slider is released
-                                scope.launch { 
-                                    renderPreview(screenDim)
-                                }
-                            },
-                            valueRange = 0.5f..1.5f,
-                            steps = 19
-                        )
-                    }
-                }
-            }
-        }
-
-        // Simple two-button bottom bar (only show when customize panel is hidden)
-        if (!showCustomize) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Customize button
-                Button(
-                    modifier = Modifier.weight(1f),
-                    enabled = !isProcessing,
-                    onClick = { showCustomize = true },
-                    colors = ButtonDefaults.buttonColors(
+                },
+                modifier = Modifier.size(56.dp),
                         containerColor = MaterialTheme.colorScheme.secondary
-                    )
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Tune, 
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.size(8.dp))
-                    Text(text = "Customize")
-                }
-                
-                // Set Wallpaper button - opens options dialog
-                Button(
-                    modifier = Modifier.weight(1f),
-                    enabled = !isProcessing && !showWallpaperSet,
+                    imageVector = Icons.Filled.Download,
+                    contentDescription = "Save",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            // Set Wallpaper button
+            FloatingActionButton(
                     onClick = {
+                    if (!isProcessing && !showWallpaperSet) {
                         showWallpaperOptions = true
                     }
+                },
+                modifier = Modifier.size(56.dp)
                 ) {
                     if (showWallpaperSet) {
-                        Text(text = "✓ Set!")
+                    Icon(
+                        imageVector = Icons.Filled.Wallpaper,
+                        contentDescription = "Set",
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                     } else {
                         Icon(
                             imageVector = Icons.Filled.Wallpaper, 
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                        contentDescription = "Set Wallpaper",
+                        modifier = Modifier.size(24.dp)
                         )
-                        Spacer(Modifier.size(8.dp))
-                        Text(text = "Set Wallpaper")
-                    }
                 }
             }
+        }
+        
+        // Permission Request Dialog
+        if (showPermissionDialog) {
+            AlertDialog(
+                onDismissRequest = { showPermissionDialog = false },
+                title = { Text(text = "Storage Permission Required") },
+                text = {
+                    Column {
+                        Text(
+                            text = "OrbitWall needs permission to save wallpapers to your device. This allows you to save and view your favorite wallpapers.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            permissionLauncher.launch(PermissionHandler.getStoragePermission())
+                        }
+                    ) {
+                        Text("Grant Permission")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPermissionDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
         
         // Wallpaper Options Dialog
@@ -594,21 +644,56 @@ fun EditorScreenPreview() {
     EditorScreen(region = region, onBack = {}, allRegions = listOf(region), previewImage = placeholderBitmap)
 }
 
-private suspend fun saveToGallery(context: Context, bitmap: Bitmap, name: String): Uri? {
+// Result class for save operation
+private data class SaveResult(val success: Boolean, val uri: Uri? = null, val error: String = "")
+
+private suspend fun saveToGallery(context: Context, bitmap: Bitmap, name: String): SaveResult {
     return withContext(Dispatchers.IO) {
+        try {
         val resolver = context.contentResolver
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/OrbitWall")
-        }
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        uri?.let {
-            resolver.openOutputStream(it)?.use { stream ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 92, stream)
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                // Save to Pictures/OrbitWall folder (Android 10+) - more reliable than Downloads
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${android.os.Environment.DIRECTORY_PICTURES}/OrbitWall")
+                }
             }
+            
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri == null) {
+                return@withContext SaveResult(false, error = "Failed to create MediaStore entry")
+            }
+            
+            resolver.openOutputStream(uri)?.use { stream ->
+                if (bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)) {
+                    stream.flush()
+                    return@withContext SaveResult(true, uri)
+                } else {
+                    // Compression failed, try to delete the created entry
+                    try {
+                        resolver.delete(uri, null, null)
+                    } catch (e: Exception) {
+                        // Ignore delete errors
+                    }
+                    return@withContext SaveResult(false, error = "Failed to compress image")
+                }
+            } ?: run {
+                // Failed to open output stream, try to delete the created entry
+                try {
+                    resolver.delete(uri, null, null)
+                } catch (e: Exception) {
+                    // Ignore delete errors
+                }
+                return@withContext SaveResult(false, error = "Failed to open output stream. Check storage permissions.")
+            }
+        } catch (e: SecurityException) {
+            android.util.Log.e("SaveWallpaper", "Security exception: ${e.message}", e)
+            return@withContext SaveResult(false, error = "Permission denied: ${e.message}")
+        } catch (e: Exception) {
+            android.util.Log.e("SaveWallpaper", "Error saving wallpaper: ${e.message}", e)
+            return@withContext SaveResult(false, error = e.message ?: "Unknown error")
         }
-        uri
     }
 }
 

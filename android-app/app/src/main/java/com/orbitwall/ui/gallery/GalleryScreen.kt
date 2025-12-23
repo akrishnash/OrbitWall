@@ -66,7 +66,8 @@ import com.orbitwall.ui.theme.Slate50
 fun GalleryScreen(
     onRegionSelected: (Region) -> Unit,
     onLogout: () -> Unit,
-    galleryViewModel: GalleryViewModel = viewModel()
+    galleryViewModel: GalleryViewModel = viewModel(),
+    initialCategoryId: String? = null
 ) {
     val homepage by galleryViewModel.homepage.collectAsState(null)
     val configuration = LocalConfiguration.current
@@ -74,7 +75,16 @@ fun GalleryScreen(
     
     // Filter state
     var showFilterSheet by remember { mutableStateOf(false) }
-    var selectedCategoryId by remember { mutableStateOf<String?>("all") }
+    var selectedCategoryId by remember(initialCategoryId) { 
+        mutableStateOf<String?>(initialCategoryId ?: "all") 
+    }
+    
+    // Update category when initialCategoryId changes
+    androidx.compose.runtime.LaunchedEffect(initialCategoryId) {
+        if (initialCategoryId != null) {
+            selectedCategoryId = initialCategoryId
+        }
+    }
     
     // Calculate grid columns based on screen width (matching Figma: 1-4 columns)
     val columns = when {
@@ -141,7 +151,12 @@ fun GalleryScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             // Header - matching Figma design
+            val categoryName = remember(selectedCategoryId, homepage) {
+                homepage?.categories?.firstOrNull { it.id == (selectedCategoryId ?: "all") }?.label
+                    ?: "All"
+            }
             Header(
+                title = categoryName,
                 wallpaperCount = filteredRegions.size,
                 onFilterClick = { showFilterSheet = true }
             )
@@ -192,6 +207,7 @@ fun GalleryScreen(
 
 @Composable
 private fun Header(
+    title: String,
     wallpaperCount: Int,
     onFilterClick: () -> Unit
 ) {
@@ -235,22 +251,12 @@ private fun Header(
                     }
                     
                     Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "OrbitWall",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            // Sparkles icon - using emoji as placeholder
-                            Text(
-                                text = "✨",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         Text(
                             text = "$wallpaperCount wallpapers available",
                             style = MaterialTheme.typography.bodySmall,

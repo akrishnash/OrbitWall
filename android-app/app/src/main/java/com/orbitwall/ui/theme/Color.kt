@@ -7,6 +7,13 @@ val CyanPrimary = Color(0xFF00BCD4)
 val CyanDark = Color(0xFF00838F)
 val YellowAccent = Color(0xFFFFD600)
 
+// Figma Design Colors (Light Theme)
+val Slate50 = Color(0xFFF8FAFC)  // slate-50
+val Blue50 = Color(0xFFEFF6FF)   // blue-50
+val Blue600 = Color(0xFF2563EB)  // blue-600
+val PrimaryDark = Color(0xFF030213) // Primary color from Figma
+val Slate100 = Color(0xFFF1F5F9) // slate-100
+
 val md_theme_light_primary = Color(0xFF006874)
 val md_theme_light_onPrimary = Color(0xFFFFFFFF)
 val md_theme_light_primaryContainer = Color(0xFF97F0FF)

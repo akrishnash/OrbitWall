@@ -21,10 +21,17 @@ View your app in AI Studio: https://ai.studio/apps/drive/1b9hiKfeb8LxY0-SmB8Goui
 **Project root:** `android-app/`
 
 ### Highlights
-- Email/password login gate with inline validation.
-- Gallery of predefined orbit-worthy regions matching the web data set.
-- Editor with tile stitching, gesture previews, brightness/blur/overlay controls, and 2K/4K exports.
-- MediaStore integration to save renders directly into `Pictures/OrbitWall`.
+- **Animated Splash Screen**: Beautiful splash screen with pulsing glow and star field animations
+- **Home Screen**: Scrollable grid of 110+ stunning locations worldwide with responsive layout
+- **Category Browsing**: Browse wallpapers by categories (Nature, Cities, Mountains, Oceans, etc.)
+- **Downloads Section**: Save and manage wallpapers offline in `Pictures/OrbitWall`
+- **Saved Wallpaper Editor**: View and set saved wallpapers offline with full-screen preview
+- **Bottom Navigation**: Easy navigation between Home, Category, and Downloads
+- **Editor Features**: Tile stitching, gesture previews (pinch-to-zoom, pan), brightness/blur controls
+- **Wallpaper Generation**: High-quality 2K/4K wallpaper generation from satellite imagery
+- **MediaStore Integration**: Save renders directly to device storage with proper permissions
+- **Wallpaper Cache**: Intelligent caching system for faster loading of previously generated wallpapers
+- **Aspect Ratio Preservation**: Proper scaling to prevent image distortion when setting wallpapers
 
 ### Getting started
 

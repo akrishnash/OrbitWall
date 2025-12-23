@@ -7,9 +7,42 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+
+private val LightColorScheme = lightColorScheme(
+    primary = PrimaryDark, // #030213 from Figma
+    onPrimary = Color.White,
+    primaryContainer = Blue50,
+    onPrimaryContainer = PrimaryDark,
+    secondary = Slate100,
+    onSecondary = PrimaryDark,
+    secondaryContainer = Color.White,
+    onSecondaryContainer = PrimaryDark,
+    tertiary = Blue600,
+    onTertiary = Color.White,
+    tertiaryContainer = Blue50,
+    onTertiaryContainer = Blue600,
+    error = md_theme_light_error,
+    errorContainer = md_theme_light_errorContainer,
+    onError = md_theme_light_onError,
+    onErrorContainer = md_theme_light_onErrorContainer,
+    background = Slate50, // slate-50 from Figma
+    onBackground = PrimaryDark,
+    surface = Color.White,
+    onSurface = PrimaryDark,
+    surfaceVariant = Slate100,
+    onSurfaceVariant = Color(0xFF64748B), // slate-500
+    outline = Color(0xFFCBD5E1), // slate-300
+    inverseOnSurface = Slate50,
+    inverseSurface = PrimaryDark,
+    inversePrimary = Color.White,
+    surfaceTint = Blue600,
+    outlineVariant = Color(0xFFE2E8F0), // slate-200
+    scrim = Color.Black.copy(alpha = 0.5f),
+)
 
 private val DarkColorScheme = darkColorScheme(
     primary = md_theme_dark_primary,
@@ -45,16 +78,16 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun OrbitWallTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false, // Use light theme to match Figma design
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            window.statusBarColor = colorScheme.surface.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
 
