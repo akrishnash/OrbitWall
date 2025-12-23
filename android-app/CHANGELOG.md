@@ -166,3 +166,4 @@ All notable changes to the OrbitWall project will be documented in this file.
 - [ ] Dark mode toggle
 - [ ] Wallpaper scheduling/auto-change
 
+

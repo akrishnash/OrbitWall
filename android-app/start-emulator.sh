@@ -2,7 +2,7 @@
 # Start Android Emulator Helper Script
 
 # SDK location from local.properties
-SDK_DIR="/c/Users/aks/AppData/Local/Android/Sdk"
+SDK_DIR="/c/Users/anurag/AppData/Local/Android/Sdk"
 EMULATOR="$SDK_DIR/emulator/emulator.exe"
 ADB="$SDK_DIR/platform-tools/adb.exe"
 
@@ -48,12 +48,12 @@ fi
 # Get list of AVDs - first try E drive, then default location
 AVDS=$("$EMULATOR" -list-avds 2>/dev/null)
 
-# If no AVDs found on E drive, check default C drive location
-if [ -z "$AVDS" ]; then
-    echo "Checking default AVD location on C drive..."
-    DEFAULT_AVD_HOME="/c/Users/aks/.android/avd"
+    # If no AVDs found on E drive, check default C drive location
+    if [ -z "$AVDS" ]; then
+        echo "Checking default AVD location on C drive..."
     
     # Check if default location exists and has AVD files
+    DEFAULT_AVD_HOME="/c/Users/anurag/.android/avd"
     if [ -d "$DEFAULT_AVD_HOME" ]; then
         # Look for .ini files which indicate AVDs
         AVD_INI_FILES=$(ls "$DEFAULT_AVD_HOME"/*.ini 2>/dev/null)

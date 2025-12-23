@@ -2,7 +2,7 @@
 # Create Android Virtual Device (AVD) on E Drive
 
 # SDK location from local.properties
-SDK_DIR="/c/Users/aks/AppData/Local/Android/Sdk"
+SDK_DIR="/c/Users/anurag/AppData/Local/Android/Sdk"
 AVDMANAGER="$SDK_DIR/cmdline-tools/latest/bin/avdmanager"
 SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
 

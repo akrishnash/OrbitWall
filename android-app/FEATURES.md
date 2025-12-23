@@ -191,3 +191,4 @@ Planned features for future releases:
 - More locations
 - Custom location input
 
+
