@@ -70,6 +70,7 @@ import com.orbitwall.model.GeoLocation
 import com.orbitwall.model.Region
 import com.orbitwall.ui.components.ControlsPanel
 import com.orbitwall.utils.PermissionHandler
+import com.orbitwall.utils.PreferencesManager
 import com.orbitwall.wallpaper.WallpaperCache
 import com.orbitwall.wallpaper.WallpaperGenerator
 import kotlinx.coroutines.Dispatchers
@@ -98,12 +99,40 @@ fun EditorScreen(
         Dimensions(width = widthPx, height = heightPx)
     }
 
-    var settings by remember(region.id) { mutableStateOf(DefaultSettings) }
+    // Load saved state if available
+    val savedState = remember(region.id) {
+        PreferencesManager.getEditorState(context)
+    }
+    
+    var settings by remember(region.id) { 
+        mutableStateOf(
+            if (savedState != null) {
+                DefaultSettings.copy(
+                    zoomOffset = savedState.zoomOffset,
+                    brightness = savedState.brightness,
+                    blur = savedState.blur,
+                    overlayOpacity = savedState.overlayOpacity
+                )
+            } else {
+                DefaultSettings
+            }
+        )
+    }
     var preview by remember(region.id) { mutableStateOf(previewImage) }
     var isProcessing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var pinchScale by remember(region.id) { mutableStateOf(1f) }
-    var panOffset by remember(region.id) { mutableStateOf(Offset.Zero) }
+    var pinchScale by remember(region.id) { 
+        mutableStateOf(savedState?.pinchScale ?: 1f) 
+    }
+    var panOffset by remember(region.id) { 
+        mutableStateOf(
+            if (savedState != null) {
+                Offset(savedState.panOffsetX, savedState.panOffsetY)
+            } else {
+                Offset.Zero
+            }
+        )
+    }
     var showWallpaperSet by remember { mutableStateOf(false) }
     var showWallpaperOptions by remember { mutableStateOf(false) }
     var swipeOffset by remember { mutableStateOf(0f) }
@@ -203,7 +232,7 @@ fun EditorScreen(
         isProcessing = true
         errorMessage = null
         try {
-            // Check cache first
+            // Check cache first (now supports disk cache)
             val cached = WallpaperCache.get(region, settingsHash)
             if (cached != null) {
                 preview = cached
@@ -224,7 +253,7 @@ fun EditorScreen(
             )
             preview = bitmap.asImageBitmap()
             
-            // Cache the generated bitmap
+            // Cache the generated bitmap (now saves to disk for persistence)
             WallpaperCache.put(region, settingsHash, bitmap)
         } catch (ex: Exception) {
             errorMessage = ex.message ?: "Failed to generate imagery"
@@ -233,10 +262,28 @@ fun EditorScreen(
         }
     }
 
-    // Initial render and reset pan/zoom when region changes
+    // Save state when it changes (debounced to avoid too frequent saves)
+    LaunchedEffect(region.id, pinchScale, panOffset.x, panOffset.y, settings.zoomOffset, settings.brightness, settings.blur, settings.overlayOpacity) {
+        kotlinx.coroutines.delay(500) // Debounce saves
+        PreferencesManager.saveEditorState(
+            context = context,
+            pinchScale = pinchScale,
+            panOffsetX = panOffset.x,
+            panOffsetY = panOffset.y,
+            zoomOffset = settings.zoomOffset,
+            brightness = settings.brightness,
+            blur = settings.blur,
+            overlayOpacity = settings.overlayOpacity
+        )
+        PreferencesManager.saveLastRegionId(context, region.id)
+    }
+    
+    // Initial render and reset pan/zoom when region changes (only if no saved state)
     LaunchedEffect(region.id) {
-        pinchScale = 1f
-        panOffset = Offset.Zero
+        if (savedState == null) {
+            pinchScale = 1f
+            panOffset = Offset.Zero
+        }
         swipeOffset = 0f
         if (previewImage == null) {
             renderPreview(screenDim)
@@ -260,18 +307,26 @@ fun EditorScreen(
         if (preview != null) {
             // Improved pan and zoom with bounds checking
             val transformState = rememberTransformableState { zoomChange, offsetChange, _ ->
-                val newScale = (pinchScale * zoomChange).coerceIn(0.5f, 4f)
-                val scaleDelta = newScale / pinchScale
-                
-                // Calculate new pan offset with bounds based on scale
-                val maxPanX = (preview!!.width * newScale - screenDim.width) / 2f
-                val maxPanY = (preview!!.height * newScale - screenDim.height) / 2f
-                
-                panOffset = Offset(
-                    x = (panOffset.x * scaleDelta + offsetChange.x).coerceIn(-maxPanX, maxPanX),
-                    y = (panOffset.y * scaleDelta + offsetChange.y).coerceIn(-maxPanY, maxPanY)
-                )
-                pinchScale = newScale
+                try {
+                    // Prevent division by zero and invalid scales
+                    if (pinchScale <= 0f || zoomChange <= 0f) return@rememberTransformableState
+                    
+                    val newScale = (pinchScale * zoomChange).coerceIn(0.5f, 4f)
+                    val scaleDelta = if (pinchScale > 0f) newScale / pinchScale else 1f
+                    
+                    // Calculate new pan offset with bounds based on scale
+                    val maxPanX = (preview!!.width * newScale - screenDim.width) / 2f
+                    val maxPanY = (preview!!.height * newScale - screenDim.height) / 2f
+                    
+                    panOffset = Offset(
+                        x = (panOffset.x * scaleDelta + offsetChange.x).coerceIn(-maxPanX, maxPanX),
+                        y = (panOffset.y * scaleDelta + offsetChange.y).coerceIn(-maxPanY, maxPanY)
+                    )
+                    pinchScale = newScale
+                } catch (e: Exception) {
+                    // Prevent crashes from invalid transform operations
+                    android.util.Log.e("EditorScreen", "Transform error: ${e.message}", e)
+                }
             }
             
             // Combined gesture handling for pan, zoom, and swipe
@@ -368,11 +423,20 @@ fun EditorScreen(
                 Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = region.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                // Add background for better readability on dark images
+                Surface(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text(
+                        text = region.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
             }
         }
 
@@ -735,14 +799,43 @@ private fun setWallpaperToScreen(
             
             withContext(Dispatchers.IO) {
                 try {
+                    // Ensure bitmap is in a compatible format - some devices require specific formats
+                    // Create a copy in ARGB_8888 format to ensure compatibility
+                    val compatibleBitmap = if (bitmap.config != Bitmap.Config.ARGB_8888) {
+                        bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    } else {
+                        bitmap
+                    }
+                    
+                    // For better compatibility, especially on some devices that show black screens,
+                    // ensure the bitmap is not recycled and has valid dimensions
+                    if (compatibleBitmap.isRecycled || compatibleBitmap.width <= 0 || compatibleBitmap.height <= 0) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Invalid bitmap format", Toast.LENGTH_SHORT).show()
+                        }
+                        setIsProcessing(false)
+                        return@withContext
+                    }
+                    
                     // Use setBitmap with flags for API 24+ (Android 7.0+)
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                        wallpaperManager.setBitmap(bitmap, null, true, flags)
+                        wallpaperManager.setBitmap(compatibleBitmap, null, true, flags)
                     } else {
                         // Fallback for older versions - sets home screen only
-                        wallpaperManager.setBitmap(bitmap)
+                        wallpaperManager.setBitmap(compatibleBitmap)
+                    }
+                    
+                    // Clean up if we created a copy
+                    if (compatibleBitmap != bitmap) {
+                        compatibleBitmap.recycle()
                     }
                 } catch (e: IOException) {
+                    android.util.Log.e("Wallpaper", "Failed to set wallpaper: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Failed to set wallpaper: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("Wallpaper", "Unexpected error setting wallpaper: ${e.message}", e)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "Failed to set wallpaper", Toast.LENGTH_SHORT).show()
                     }

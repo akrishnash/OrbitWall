@@ -39,7 +39,7 @@ fun BottomNavigationBar(
     
     NavigationBar(
         modifier = Modifier.fillMaxWidth(),
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         items.forEach { item ->
@@ -52,7 +52,7 @@ fun BottomNavigationBar(
                         tint = if (isSelected) {
                             MaterialTheme.colorScheme.primary
                         } else {
-                            Color.Gray
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         }
                     )
                 },
@@ -62,7 +62,7 @@ fun BottomNavigationBar(
                         color = if (isSelected) {
                             MaterialTheme.colorScheme.primary
                         } else {
-                            Color.Gray
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         }
                     )
                 },
@@ -72,6 +72,7 @@ fun BottomNavigationBar(
         }
     }
 }
+
 
 
 

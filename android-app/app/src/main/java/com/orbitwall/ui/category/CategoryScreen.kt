@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -20,8 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.orbitwall.ui.gallery.GalleryViewModel
-import com.orbitwall.ui.theme.Blue50
-import com.orbitwall.ui.theme.Slate50
 
 @Composable
 fun CategoryScreen(
@@ -33,11 +32,7 @@ fun CategoryScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Slate50, Blue50)
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
             modifier = Modifier
@@ -57,7 +52,7 @@ fun CategoryScreen(
             item {
                 Text(
                     text = "Explore satellite imagery from around the world. Each region showcases unique landscapes, landmarks, and natural wonders captured from space.",
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
             }
@@ -92,7 +87,7 @@ private fun CategoryCard(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Column(
@@ -108,13 +103,13 @@ private fun CategoryCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "$regionCount wallpapers available",
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 fontSize = 14.dp.value.toInt().sp
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = description,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 fontSize = 14.dp.value.toInt().sp
             )
         }

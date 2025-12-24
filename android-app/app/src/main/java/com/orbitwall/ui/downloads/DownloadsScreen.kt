@@ -34,8 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.orbitwall.ui.theme.Blue50
-import com.orbitwall.ui.theme.Slate50
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -63,11 +61,7 @@ fun DownloadsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Slate50, Blue50)
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header with title - matching GalleryScreen style
@@ -75,7 +69,7 @@ fun DownloadsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding(),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 2.dp
             ) {
                 Column(
@@ -104,7 +98,7 @@ fun DownloadsScreen(
                 ) {
                     Text(
                         text = "Loading...",
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
             } else if (savedWallpapers.isEmpty()) {
@@ -120,18 +114,18 @@ fun DownloadsScreen(
                         text = "No Downloads Yet",
                         fontWeight = FontWeight.Bold,
                         fontSize = 24.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Wallpapers you save will appear here",
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         fontSize = 16.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Saved to Pictures/OrbitWall",
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         fontSize = 14.sp
                     )
                 }

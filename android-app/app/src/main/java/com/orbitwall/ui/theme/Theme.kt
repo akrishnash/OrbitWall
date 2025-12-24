@@ -78,7 +78,7 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun OrbitWallTheme(
-    darkTheme: Boolean = false, // Use light theme to match Figma design
+    darkTheme: Boolean = isSystemInDarkTheme(), // Use system theme by default
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

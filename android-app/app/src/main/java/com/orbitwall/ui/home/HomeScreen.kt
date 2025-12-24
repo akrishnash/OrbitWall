@@ -7,10 +7,17 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,8 +39,8 @@ import coil.request.ImageRequest
 import com.orbitwall.model.Region
 import com.orbitwall.model.RegionHelper
 import com.orbitwall.ui.gallery.GalleryViewModel
-import com.orbitwall.ui.theme.Blue50
-import com.orbitwall.ui.theme.Slate50
+import com.orbitwall.utils.PreferencesManager
+import androidx.compose.foundation.isSystemInDarkTheme
 
 @Composable
 fun HomeScreen(
@@ -60,37 +67,57 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Slate50, Blue50)
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header with title
+            // Header with title and dark mode toggle
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding(),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 2.dp
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Random",
+                        text = "OrbitWall",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = "${allRegions.size} wallpapers available",
-                        fontSize = 14.sp,
-                        color = Color.Gray
-                    )
+                    // Dark mode toggle
+                    val context = LocalContext.current
+                    val useSystemTheme = remember { PreferencesManager.useSystemTheme(context) }
+                    val darkModeEnabled = remember { PreferencesManager.isDarkModeEnabled(context) }
+                    val systemDarkTheme = isSystemInDarkTheme()
+                    val isDarkTheme = if (useSystemTheme) systemDarkTheme else darkModeEnabled
+                    
+                    IconButton(
+                        onClick = {
+                            if (useSystemTheme) {
+                                // Switch to manual mode
+                                PreferencesManager.setUseSystemTheme(context, false)
+                                PreferencesManager.setDarkMode(context, !systemDarkTheme)
+                            } else {
+                                // Toggle dark mode
+                                PreferencesManager.setDarkMode(context, !darkModeEnabled)
+                            }
+                            // Restart activity to apply theme change
+                            (context as? android.app.Activity)?.recreate()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (isDarkTheme) "Light Mode" else "Dark Mode",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
             
@@ -121,7 +148,7 @@ fun HomeScreen(
                 ) {
                     Text(
                         text = "Loading...",
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
             }
@@ -167,12 +194,12 @@ private fun FeaturedImageCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFFF3F4F6)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = region.name,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
